@@ -6,14 +6,16 @@ document.addEventListener('DOMContentLoaded', async function () {
     const sortingInfo = document.getElementById('sortingInfo');
 
     let originalData = [];
-    let lastSortingCriteria = '';
+    let filteredData = [];
+    let currentSortingCriteria = '';
+    let isAscending = true;
 
     async function fetchData() {
         try {
             const response = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false');
-            const data = await response.json();
-            originalData = data;
-            renderData(data);
+            originalData = await response.json();
+            filteredData = [...originalData];
+            renderData(originalData);
         } catch (error) {
             console.error('Error fetching data:', error);
         }
@@ -21,21 +23,27 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     function renderData(data) {
         cryptoData.innerHTML = '';
-        data.forEach(coin => {
-            const row = document.createElement('tr');
-            const percentageChange = coin.price_change_percentage_24h;
-            const color = percentageChange >= 0 ? 'green' : 'red';
-            row.innerHTML = `
-                <td><img src="${coin.image}" alt="${coin.name}" width="50"></td>
-                <td>${coin.name}</td>
-                <td>${coin.symbol.toUpperCase()}</td>
-                <td>$${coin.current_price}</td>
-                <td>$${coin.total_volume}</td>
-                <td>$${coin.market_cap}</td>
-                <td style="color: ${color}">${percentageChange.toFixed(2)}%</td>
-            `;
-            cryptoData.appendChild(row);
-        });
+        if (data.length === 0) {
+            const noResultRow = document.createElement('tr');
+            noResultRow.innerHTML = '<td colspan="7" style="text-align: center;">No results found</td>';
+            cryptoData.appendChild(noResultRow);
+        } else {
+            data.forEach(coin => {
+                const row = document.createElement('tr');
+                const percentageChange = coin.price_change_percentage_24h;
+                const color = percentageChange >= 0 ? 'green' : 'red';
+                row.innerHTML = `
+                    <td><img src="${coin.image}" alt="${coin.name}" width="50"></td>
+                    <td>${coin.name}</td>
+                    <td>${coin.symbol.toUpperCase()}</td>
+                    <td>$${coin.current_price}</td>
+                    <td>$${coin.total_volume}</td>
+                    <td style="color: ${color}">${percentageChange.toFixed(2)}%</td>
+                    <td>Mkt Cap: $${coin.market_cap}</td>
+                `;
+                cryptoData.appendChild(row);
+            });
+        }
     }
 
     function updateSortingInfo(criteria) {
@@ -44,21 +52,41 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     function search() {
         const searchValue = searchInput.value.trim().toLowerCase();
-        const filteredData = originalData.filter(coin => coin.name.toLowerCase().includes(searchValue) || coin.symbol.toLowerCase().includes(searchValue));
+        filteredData = originalData.filter(coin => coin.name.toLowerCase().includes(searchValue) || coin.symbol.toLowerCase().includes(searchValue));
+        currentSortingCriteria = 'Search';
         renderData(filteredData);
         updateSortingInfo('Search');
     }
 
+    function sortData(criteria) {
+        if (criteria === currentSortingCriteria) {
+            isAscending = !isAscending;
+        } else {
+            isAscending = true;
+            currentSortingCriteria = criteria;
+        }
+
+        switch (criteria) {
+            case 'MarketCap':
+                filteredData.sort((a, b) => (isAscending ? 1 : -1) * (a.market_cap - b.market_cap));
+                break;
+            case 'PercentageChange':
+                filteredData.sort((a, b) => (isAscending ? 1 : -1) * (a.price_change_percentage_24h - b.price_change_percentage_24h));
+                break;
+            default:
+                break;
+        }
+
+        renderData(filteredData);
+        updateSortingInfo(`${criteria} ${isAscending ? 'Ascending' : 'Descending'}`);
+    }
+
     function sortMarketCap() {
-        const sortedData = originalData.slice().sort((a, b) => b.market_cap - a.market_cap);
-        renderData(sortedData);
-        updateSortingInfo('Market Cap');
+        sortData('MarketCap');
     }
 
     function sortPercentageChange() {
-        const sortedData = originalData.slice().sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h);
-        renderData(sortedData);
-        updateSortingInfo('% Change (24h)');
+        sortData('PercentageChange');
     }
 
     searchInput.addEventListener('input', search);
@@ -67,5 +95,4 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     await fetchData();
 });
-
   
